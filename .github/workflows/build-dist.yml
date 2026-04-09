@@ -12,7 +12,7 @@ jobs:
     name: Build Linux DEB
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
@@ -26,7 +26,7 @@ jobs:
         run: ./scripts/build_linux_deb.sh
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: orka-linux-deb
           path: build/*.deb
@@ -35,14 +35,14 @@ jobs:
     name: Build Windows MSIX
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Build and Package MSIX
         shell: powershell
         run: .\scripts\build_windows_ms_store.ps1
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: orka-windows-msix
           path: build/*.msix
