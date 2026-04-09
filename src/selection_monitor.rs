@@ -67,16 +67,17 @@ pub mod windows {
         if OpenClipboard(HWND(0)).is_err() { return None; }
         let result = GetClipboardData(13 /* CF_UNICODETEXT */).ok()
             .and_then(|h| {
-                // In windows 0.52, GlobalLock takes the HGLOBAL param directly
-                let ptr = GlobalLock(h) as *const u16;
-            if ptr.is_null() { return None; }
-            let len = (0..).take_while(|&i| *ptr.add(i) != 0).count();
-            let text = String::from_utf16_lossy(
-                std::slice::from_raw_parts(ptr, len)
-            ).to_string();
-            let _ = GlobalUnlock(h);
-            Some(text)
-        });
+                // GetClipboardData returns HANDLE, but GlobalLock expects HGLOBAL
+                let h_global: HGLOBAL = std::mem::transmute(h);
+                let ptr = GlobalLock(h_global) as *const u16;
+                if ptr.is_null() { return None; }
+                let len = (0..).take_while(|&i| *ptr.add(i) != 0).count();
+                let text = String::from_utf16_lossy(
+                    std::slice::from_raw_parts(ptr, len)
+                ).to_string();
+                let _ = GlobalUnlock(h_global);
+                Some(text)
+            });
         let _ = CloseClipboard();
         result
     }
