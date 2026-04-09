@@ -354,6 +354,7 @@ int main(int argc, char* argv[]) {
     std::thread monitorThread;
     if (!hotkeyOnly) {
         monitorThread = std::thread([&]() {
+            CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
             monitor.start([&](const std::wstring& selectedText) {
                 std::lock_guard<std::mutex> lock(g_overlayMutex);
                 g_pendingText = selectedText;
@@ -362,11 +363,13 @@ int main(int argc, char* argv[]) {
                 std::cout << "[ORKA] Selection detected: "
                           << wideToUtf8(selectedText) << "\n";
             });
+            CoUninitialize();
         });
     }
 
     // Windows hotkey thread — processes Alt+Z global hotkey
     std::thread hotkeyTh([&]() {
+        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
         g_winHotkeyThreadId = GetCurrentThreadId();
         const int HOTKEY_ID = 1;
 
@@ -404,6 +407,7 @@ int main(int argc, char* argv[]) {
         }
 
         UnregisterHotKey(nullptr, HOTKEY_ID);
+        CoUninitialize();
         std::cout << "[ORKA] Hotkey thread stopped\n";
     });
     

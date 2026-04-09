@@ -26,7 +26,7 @@ public:
         RegisterClassW(&wc);
 
         m_hwnd = CreateWindowExW(0, L"OrkaTrayClass", L"Orka System Tray", 0, 0, 0, 0, 0,
-                                 HWND_MESSAGE, nullptr, wc.hInstance, this);
+                                 nullptr, nullptr, wc.hInstance, this);
         if (!m_hwnd) return false;
 
         m_nid.cbSize = sizeof(NOTIFYICONDATAW);
