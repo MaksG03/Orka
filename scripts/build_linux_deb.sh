@@ -47,9 +47,13 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: Perepelytsia Orka Technologies <orka@example.com>
-Description: Intelligent keyboard layout converter.
+Description: Intelligent keyboard layout converter
  Supports EN/UK, EN/KO, and EN/HE pairs with seamless overlay UI.
 EOF
+
+# Ensure permissions are correct for Debian packaging
+chmod -R 0755 "$DEB_DIR"
+
 
 # 6. Build DEB
 echo "[2/3] Building .deb package..."

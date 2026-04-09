@@ -6,7 +6,7 @@ Write-Host "╔═════════════════════�
 Write-Host "║  Windows MSIX Package Build — ORKA       ║"
 Write-Host "╚══════════════════════════════════════════╝"
 
-$ProjectPath = (Get-Item "..\..").FullName
+$ProjectPath = (Resolve-Path "$PSScriptRoot\..").Path
 $StagingDir = "$ProjectPath\build\MSIX_Staging"
 $AssetsDir = "$StagingDir\Assets"
 
@@ -20,7 +20,7 @@ cmake --build . --config Release
 
 if (!(Test-Path -Path "Release\orka.exe")) {
     Write-Error "Compilation failed. orka.exe not found."
-    exit
+    exit 1
 }
 
 # 2. Prepare MSIX staging directory
@@ -45,15 +45,21 @@ if (Test-Path "..\imege.png") {
 # 3. Create MSIX Package using MakeAppx.exe (from Windows SDK)
 Write-Host "`n[3/4] Packaging MSIX container..."
 # Try to dynamically locate Windows 10 SDK MakeAppx.exe
-$sdkPath = (Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' | Sort-Object Name -Descending | Select-Object -First 1).FullName
+$sdkPath = (Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
 $makeAppx = "$sdkPath\x64\makeappx.exe"
 
 if (!(Test-Path $makeAppx)) {
-    Write-Error "MakeAppx.exe not found. Is the Windows 10 SDK installed?"
-    exit
+    Write-Error "MakeAppx.exe not found at $makeAppx"
+    exit 1
 }
 
+Write-Host "Found MakeAppx at: $makeAppx"
 & $makeAppx pack /d $StagingDir /p "Orka_1.0.0.0_x64.msix"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "MakeAppx execution failed"
+    exit $LASTEXITCODE
+}
 
 # 4. Success note
 Write-Host "`n[4/4] Success! MSIX Package generated at $ProjectPath\build\Orka_1.0.0.0_x64.msix"

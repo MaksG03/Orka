@@ -11,6 +11,8 @@ jobs:
   build-linux:
     name: Build Linux DEB
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +36,8 @@ jobs:
   build-windows:
     name: Build Windows MSIX
     runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
