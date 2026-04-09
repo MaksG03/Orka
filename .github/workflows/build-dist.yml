@@ -1,0 +1,48 @@
+name: Build & Package Orka
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux DEB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libx11-dev libxfixes-dev dpkg
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Build and Package
+        run: ./scripts/build_linux_deb.sh
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: orka-linux-deb
+          path: build/*.deb
+
+  build-windows:
+    name: Build Windows MSIX
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build and Package MSIX
+        shell: powershell
+        run: .\scripts\build_windows_ms_store.ps1
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: orka-windows-msix
+          path: build/*.msix
