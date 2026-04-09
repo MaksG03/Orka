@@ -61,7 +61,7 @@ namespace {
 #endif
 
 #ifdef _WIN32
-    DWORD g_mainThreadId = 0;
+    DWORD g_winHotkeyThreadId = 0;
 #endif
 }
 
@@ -71,9 +71,10 @@ void signalHandler(int) {
     if (g_linuxMonitor) g_linuxMonitor->stop();
 #endif
 #ifdef _WIN32
-    if (g_mainThreadId != 0) {
-        PostThreadMessage(g_mainThreadId, WM_QUIT, 0, 0);
+    if (g_winHotkeyThreadId != 0) {
+        PostThreadMessage(g_winHotkeyThreadId, WM_QUIT, 0, 0);
     }
+    // SysTray quit will break the main thread message loop
 #endif
 }
 
@@ -334,68 +335,14 @@ int main(int argc, char* argv[]) {
         std::cout << "[ORKA] Hotkey-only mode active (Alt+Z)\n";
     }
 
-    std::cout << "[ORKA] Press Ctrl+C or use System Tray to exit\n\n";
-
-    // Initialize System Tray and UI
-    orka::ui::SysTray* tray = orka::ui::createSysTray();
-    orka::ui::SettingsWindow settingsWin;
-
-    // Set callback for when language is changed in the UI
-    settingsWin.setOnLanguageChanged([&](const std::string& lang) {
-        if (lang == "uk") activePair = orka::LanguagePair::EN_UK;
-        else if (lang == "ko") activePair = orka::LanguagePair::EN_KO;
-        else if (lang == "he") activePair = orka::LanguagePair::EN_HE;
-        std::cout << "[ORKA] Language updated from UI: " << lang << "\n";
-    });
-
-    if (tray->init()) {
-        tray->setOnExitClicked([&]() {
-            g_running = false;
-            monitor.stop();
-        });
-        
-        tray->setOnSettingsClicked([&]() {
-            // Path fallback: check dev environment first
-            std::string uiPath = "/usr/share/orka/ui/index.html"; 
-            if (const char* cwd = std::getenv("PWD")) {
-                std::string devPath = std::string(cwd) + "/src/ui/webapp/dist/index.html";
-                // Basic check if we are running in dev tree
-                if (devPath.find("Orka") != std::string::npos) {
-                    uiPath = devPath;
-                }
-            }
-            settingsWin.show(uiPath);
-        });
-        
-        std::cout << "[ORKA] System Tray initialized.\n";
-        tray->runLoop(); // Blocks here until exit clicked
-    } else {
-        std::cerr << "[ORKA] Warning: Failed to init System Tray. Falling back to non-GUI mode.\n";
-        while(g_running) std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
-    
-    g_running = false;
-    monitor.stop();
-
     if (monitorTh.joinable()) monitorTh.join();
     if (hotkeyTh.joinable()) hotkeyTh.join();
     if (overlayTh.joinable()) overlayTh.join();
-#endif
+#endif // __linux__
 
 #ifdef _WIN32
-    g_mainThreadId = GetCurrentThreadId();
-    
     orka::platform::SelectionMonitor monitor;
     orka::platform::TextInjector injector;
-
-    // §6: Register global hotkey Alt+Z
-    const int HOTKEY_ID = 1;
-    if (!RegisterHotKey(nullptr, HOTKEY_ID,
-                        MOD_ALT | MOD_NOREPEAT, 'Z')) {
-        std::cerr << "[ORKA] Failed to register hotkey Alt+Z\n";
-    } else {
-        std::cout << "[ORKA] Hotkey Alt+Z registered\n";
-    }
 
 #ifdef ENTERPRISE_BUILD
     std::cout << "[ORKA] Enterprise mode — hotkey-only (zero hooks)\n";
@@ -403,7 +350,7 @@ int main(int argc, char* argv[]) {
     std::cout << "[ORKA] Consumer mode — hooks + UIA\n";
 #endif
 
-    // Start selection monitor in a separate thread (it runs its own message loop)
+    // Start selection monitor
     std::thread monitorThread;
     if (!hotkeyOnly) {
         monitorThread = std::thread([&]() {
@@ -418,42 +365,129 @@ int main(int argc, char* argv[]) {
         });
     }
 
-    // Windows message loop — processes hotkey messages
-    std::cout << "[ORKA] Press Ctrl+Shift+O to convert selected text\n";
-    std::cout << "[ORKA] Close window or Ctrl+C to exit\n\n";
+    // Windows hotkey thread — processes Alt+Z global hotkey
+    std::thread hotkeyTh([&]() {
+        g_winHotkeyThreadId = GetCurrentThreadId();
+        const int HOTKEY_ID = 1;
 
-    MSG msg;
-    while (g_running && GetMessage(&msg, nullptr, 0, 0)) {
-        if (msg.message == WM_HOTKEY && msg.wParam == HOTKEY_ID) {
-            std::cout << "[ORKA] Hotkey triggered!\n";
-
-            std::wstring selected = monitor.getSelectedText();
-            if (!selected.empty()) {
-                auto result = engine.convert(selected, activePair);
-                if (result.success) {
-                    if (result.nikudStripped) {
-                        std::cout << "[ORKA] Warning: Nikud diacritics were stripped (lossy)\n";
-                    }
-                    if (result.escapeRequired) {
-                        std::cout << "[ORKA] Warning: IME unfinished syllable cancelled\n";
-                    }
-                    injector.inject(result.text);
-                    std::cout << "[ORKA] Conversion complete\n";
-                } else {
-                    std::cerr << "[ORKA] Conversion failed\n";
-                }
-            } else {
-                std::cout << "[ORKA] No text selected\n";
-            }
+        if (!RegisterHotKey(nullptr, HOTKEY_ID, MOD_ALT | MOD_NOREPEAT, 'Z')) {
+            std::cerr << "[ORKA] Failed to register hotkey Alt+Z\n";
+        } else {
+            std::cout << "[ORKA] Hotkey Alt+Z registered. Press Ctrl+Shift+O to convert selected text\n";
         }
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
 
-    UnregisterHotKey(nullptr, HOTKEY_ID);
+        MSG msg;
+        while (g_running && GetMessage(&msg, nullptr, 0, 0)) {
+            if (msg.message == WM_HOTKEY && msg.wParam == HOTKEY_ID) {
+                std::cout << "[ORKA] Hotkey triggered!\n";
+                std::wstring selected = monitor.getSelectedText();
+                if (!selected.empty()) {
+                    auto result = engine.convert(selected, activePair);
+                    if (result.success) {
+                        if (result.nikudStripped) {
+                            std::cout << "[ORKA] Warning: Nikud diacritics were stripped (lossy)\n";
+                        }
+                        if (result.escapeRequired) {
+                            std::cout << "[ORKA] Warning: IME unfinished syllable cancelled\n";
+                        }
+                        injector.inject(result.text);
+                        std::cout << "[ORKA] Conversion complete\n";
+                    } else {
+                        std::cerr << "[ORKA] Conversion failed\n";
+                    }
+                } else {
+                    std::cout << "[ORKA] No text selected\n";
+                }
+            }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+
+        UnregisterHotKey(nullptr, HOTKEY_ID);
+        std::cout << "[ORKA] Hotkey thread stopped\n";
+    });
+    
+    std::cout << "[ORKA] Press Ctrl+C or use System Tray to exit\n\n";
+
+#endif // _WIN32
+
+    // ════════════════════════════════════════════════════════════════════
+    // Shared UI Initialization (Windows & Linux)
+    // ════════════════════════════════════════════════════════════════════
+
+    orka::ui::SysTray* tray = orka::ui::createSysTray();
+    orka::ui::SettingsWindow settingsWin;
+
+    settingsWin.setOnLanguageChanged([&](const std::string& lang) {
+        if (lang == "uk") activePair = orka::LanguagePair::EN_UK;
+        else if (lang == "ko") activePair = orka::LanguagePair::EN_KO;
+        else if (lang == "he") activePair = orka::LanguagePair::EN_HE;
+        std::cout << "[ORKA] Language updated from UI: " << lang << "\n";
+    });
+
+    if (tray->init()) {
+        tray->setOnExitClicked([&]() {
+            g_running = false;
+            tray->quit();
+#ifdef __linux__
+            monitor.stop();
+#endif
+#ifdef _WIN32
+            monitor.stop();
+            if (g_winHotkeyThreadId != 0) {
+                PostThreadMessage(g_winHotkeyThreadId, WM_QUIT, 0, 0);
+            }
+#endif
+        });
+        
+        tray->setOnSettingsClicked([&]() {
+            std::string uiPath = "/usr/share/orka/ui/index.html"; 
+#ifdef _WIN32
+            // Windows typically expects paths formatted properly. For dev check:
+            uiPath = "C:\\Program Files\\Orka\\index.html";
+#endif
+            if (const char* cwd = std::getenv("PWD")) {
+                std::string devPath = std::string(cwd) + "/src/ui/webapp/dist/index.html";
+                if (devPath.find("Orka") != std::string::npos) {
+                    uiPath = devPath;
+                }
+            } else if (const char* cwd = std::getenv("CD")) {
+                // Windows PWD fallback (if run from cmd/ps1)
+                std::string devPath = std::string(cwd) + "\\src\\ui\\webapp\\dist\\index.html";
+                if (devPath.find("Orka") != std::string::npos) {
+                    uiPath = devPath;
+                }
+            }
+            settingsWin.show(uiPath);
+        });
+        
+        std::cout << "[ORKA] System Tray initialized.\n";
+        tray->runLoop(); // Blocks here until exit clicked
+    } else {
+        std::cerr << "[ORKA] Warning: Failed to init System Tray. Falling back to non-GUI mode.\n";
+        while(g_running) std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    
+    // Shutdown Sequence
     g_running = false;
+#ifdef __linux__
     monitor.stop();
+    if (monitorTh.joinable()) monitorTh.join();
+    if (hotkeyTh.joinable()) hotkeyTh.join();
+    if (overlayTh.joinable()) overlayTh.join();
+#endif
+
+#ifdef _WIN32
+    monitor.stop();
+    if (g_winHotkeyThreadId != 0) {
+        PostThreadMessage(g_winHotkeyThreadId, WM_QUIT, 0, 0);
+    }
     if (monitorThread.joinable()) monitorThread.join();
+    if (hotkeyTh.joinable()) hotkeyTh.join();
+#endif
+
+#ifdef _WIN32
+    // (Windows setup moved up to unified sysTray loop)
 #endif
 
     std::cout << "\n[ORKA] Shutdown complete.\n";
