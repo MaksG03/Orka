@@ -1,0 +1,37 @@
+[package]
+name = "orka"
+version = "1.0.0"
+edition = "2021"
+description = "Orka — Intelligent Keyboard Layout Converter (UA/KO/HE ↔ EN)"
+authors = ["Perepelytsia Orka Technologies"]
+license = "Proprietary"
+
+[dependencies]
+tray-icon = "0.14"
+image = { version = "0.24", features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Webview-based settings UI (reuses existing React webapp)
+wry = "0.39"
+tao = "0.28"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_DataExchange",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Memory",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = { version = "0.13", features = ["xfixes"] }
+
+# Windows: приховати консольне вікно у Release
+[package.metadata.winres]
+OriginalFilename = "orka.exe"
+
+[[bin]]
+name = "orka"
+path = "src/main.rs"

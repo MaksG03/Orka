@@ -3,12 +3,11 @@ name: Build & Package Orka
 on:
   push:
     branches: [ "main" ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-linux:
@@ -17,13 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libx11-dev libxfixes-dev dpkg libgtk-3-dev libappindicator3-dev libwebkit2gtk-4.0-dev nodejs npm
+          sudo apt-get install -y \
+            libx11-dev \
+            libxfixes-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            xdotool \
+            nodejs npm
 
-      - name: Make scripts executable
-        run: chmod +x scripts/*.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Build Webview UI
         run: |
@@ -32,7 +38,9 @@ jobs:
           npm run build
 
       - name: Build and Package
-        run: ./scripts/build_linux_deb.sh
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/build_linux_deb.sh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -46,8 +54,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
 
       - name: Build and Package MSIX
         shell: pwsh
@@ -58,3 +68,45 @@ jobs:
         with:
           name: orka-windows-msix
           path: build/*.msix
+
+  # ── GitHub Release (only on tags) ────────────────────
+  release:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Orka ${{ github.ref_name }}"
+          body: |
+            ## Orka ${{ github.ref_name }}
+
+            **Конвертер розкладки клавіатури** · Perepelytsia Orka Technologies
+
+            ### Встановлення
+            - **Windows**: завантажте `.msix`, встановіть
+            - **Linux**: завантажте `.deb`, встановіть `sudo dpkg -i orka_*.deb`
+
+            ### Використання
+            1. Виділіть текст у будь-якому додатку
+            2. Натисніть **Alt+Z**
+            3. Текст автоматично конвертується
+
+            ### Підтримувані розкладки
+            🇺🇦 Українська ↔ 🇬🇧 Англійська
+            🇰🇷 Корейська ↔ 🇬🇧 Англійська
+            🇮🇱 Іврит ↔ 🇬🇧 Англійська
+
+          files: |
+            artifacts/orka-linux-deb/*.deb
+            artifacts/orka-windows-msix/*.msix
+          draft: false
+          prerelease: false
