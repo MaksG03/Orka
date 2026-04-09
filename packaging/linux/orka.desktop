@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Orka
+Comment=Intelligent Keyboard Converter
+Exec=orka
+Icon=orka
+Terminal=false
+Type=Application
+Categories=Utility;System;
+StartupNotify=true
+# Orka runs autonomously in the system tray, so no terminal window will be visible

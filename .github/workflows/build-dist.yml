@@ -17,10 +17,16 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libx11-dev libxfixes-dev dpkg
+          sudo apt-get install -y cmake g++ libx11-dev libxfixes-dev dpkg libgtk-3-dev libappindicator3-dev libwebkit2gtk-4.0-dev nodejs npm
 
       - name: Make scripts executable
         run: chmod +x scripts/*.sh
+
+      - name: Build Webview UI
+        run: |
+          cd src/ui/webapp
+          npm install
+          npm run build
 
       - name: Build and Package
         run: ./scripts/build_linux_deb.sh

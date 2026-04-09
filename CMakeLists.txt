@@ -65,11 +65,28 @@ elseif(UNIX AND NOT APPLE)
     )
 endif()
 
-# ── UI sources ──────────────────────────────────────────────────────
+# UI sources are heavily platform dependent now due to SysTray/Webview
 set(UI_SOURCES
     src/ui/overlay.cpp
     src/ui/overlay.h
+    src/ui/settings_window.cpp
+    src/ui/settings_window.h
 )
+
+if(WIN32)
+    list(APPEND UI_SOURCES src/ui/sys_tray_win.cpp)
+elseif(UNIX AND NOT APPLE)
+    list(APPEND UI_SOURCES src/ui/sys_tray_linux.cpp)
+endif()
+
+# Fetch Webview
+include(FetchContent)
+FetchContent_Declare(
+    webview
+    GIT_REPOSITORY https://github.com/webview/webview.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(webview)
 
 # ── Main executable ─────────────────────────────────────────────────
 add_executable(orka
@@ -95,11 +112,16 @@ endif()
 
 # Platform libraries
 if(WIN32)
-    target_link_libraries(orka PRIVATE user32 gdi32 ole32 oleaut32 uiautomationcore oleacc)
+    target_link_libraries(orka PRIVATE user32 gdi32 ole32 oleaut32 uiautomationcore oleacc webview)
 elseif(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
-    target_include_directories(orka PRIVATE ${X11_INCLUDE_DIR})
-    target_link_libraries(orka PRIVATE ${X11_LIBRARIES} Xfixes)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(APPINDICATOR REQUIRED appindicator3-0.1 gtk+-3.0)
+    
+    target_include_directories(orka PRIVATE ${APPINDICATOR_INCLUDE_DIRS})
+    target_link_directories(orka PRIVATE ${APPINDICATOR_LIBRARY_DIRS})
+    
+    target_link_libraries(orka PRIVATE X11 Xfixes webview ${APPINDICATOR_LIBRARIES})
 endif()
 
 # ── Test runner ─────────────────────────────────────────────────────

@@ -23,6 +23,10 @@
 #include "platform/win/text_injector.h"
 #endif
 
+// Framework
+#include "ui/sys_tray.h"
+#include "ui/settings_window.h"
+
 #include <iostream>
 #include <string>
 #include <csignal>
@@ -101,9 +105,9 @@ void hotkeyThread(orka::LanguageEngine& engine,
 
     Window root = DefaultRootWindow(display);
 
-    // §6: XGrabKey(display, keycode, ControlMask|ShiftMask, root, True, GrabModeAsync, GrabModeAsync)
-    KeyCode keycode = XKeysymToKeycode(display, XStringToKeysym("o"));
-    unsigned int modifiers = ControlMask | ShiftMask;
+    // §6: XGrabKey(display, keycode, Mod1Mask, root, True, GrabModeAsync, GrabModeAsync)
+    KeyCode keycode = XKeysymToKeycode(display, XStringToKeysym("z"));
+    unsigned int modifiers = Mod1Mask;
 
     XGrabKey(display, keycode, modifiers, root, True, GrabModeAsync, GrabModeAsync);
     // Also grab with NumLock / CapsLock variants
@@ -112,7 +116,7 @@ void hotkeyThread(orka::LanguageEngine& engine,
     XGrabKey(display, keycode, modifiers | Mod2Mask | LockMask, root, True, GrabModeAsync, GrabModeAsync);
 
     XSelectInput(display, root, KeyPressMask);
-    std::cout << "[ORKA] Hotkey Ctrl+Shift+O registered\n";
+    std::cout << "[ORKA] Hotkey Alt+Z registered\n";
 
     while (g_running) {
         while (XPending(display)) {
@@ -311,30 +315,69 @@ int main(int argc, char* argv[]) {
         overlayTh = std::thread(overlayThread, std::ref(engine), std::ref(injector), activePair);
     }
 
+    std::thread monitorTh;
     if (!hotkeyOnly) {
         // Start selection monitor (overlay mode)
         std::cout << "[ORKA] Selection Monitor active (overlay mode)\n";
-        std::cout << "[ORKA] Press Ctrl+C to exit\n\n";
+        monitorTh = std::thread([&]() {
+            monitor.start([&](const std::wstring& selectedText) {
+                // §5 Intent detection: record the selection and timestamp.
+                std::lock_guard<std::mutex> lock(g_overlayMutex);
+                g_pendingText = selectedText;
+                g_selectionTime = std::chrono::steady_clock::now();
+                g_selectionPending = true;
 
-        monitor.start([&](const std::wstring& selectedText) {
-            // §5 Intent detection: record the selection and timestamp.
-            // The overlay thread checks if 300ms have elapsed before showing.
-            std::lock_guard<std::mutex> lock(g_overlayMutex);
-            g_pendingText = selectedText;
-            g_selectionTime = std::chrono::steady_clock::now();
-            g_selectionPending = true;
-
-            std::cout << "[ORKA] Selection detected: " << wideToUtf8(selectedText) << "\n";
+                std::cout << "[ORKA] Selection detected: " << wideToUtf8(selectedText) << "\n";
+            });
         });
     } else {
-        std::cout << "[ORKA] Hotkey-only mode active (Ctrl+Shift+O)\n";
-        std::cout << "[ORKA] Press Ctrl+C to exit\n\n";
-        while (g_running) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
+        std::cout << "[ORKA] Hotkey-only mode active (Alt+Z)\n";
     }
 
+    std::cout << "[ORKA] Press Ctrl+C or use System Tray to exit\n\n";
+
+    // Initialize System Tray and UI
+    orka::ui::SysTray* tray = orka::ui::createSysTray();
+    orka::ui::SettingsWindow settingsWin;
+
+    // Set callback for when language is changed in the UI
+    settingsWin.setOnLanguageChanged([&](const std::string& lang) {
+        if (lang == "uk") activePair = orka::LanguagePair::EN_UK;
+        else if (lang == "ko") activePair = orka::LanguagePair::EN_KO;
+        else if (lang == "he") activePair = orka::LanguagePair::EN_HE;
+        std::cout << "[ORKA] Language updated from UI: " << lang << "\n";
+    });
+
+    if (tray->init()) {
+        tray->setOnExitClicked([&]() {
+            g_running = false;
+            monitor.stop();
+        });
+        
+        tray->setOnSettingsClicked([&]() {
+            // Path fallback: check dev environment first
+            std::string uiPath = "/usr/share/orka/ui/index.html"; 
+            if (const char* cwd = std::getenv("PWD")) {
+                std::string devPath = std::string(cwd) + "/src/ui/webapp/dist/index.html";
+                // Basic check if we are running in dev tree
+                if (devPath.find("Orka") != std::string::npos) {
+                    uiPath = devPath;
+                }
+            }
+            settingsWin.show(uiPath);
+        });
+        
+        std::cout << "[ORKA] System Tray initialized.\n";
+        tray->runLoop(); // Blocks here until exit clicked
+    } else {
+        std::cerr << "[ORKA] Warning: Failed to init System Tray. Falling back to non-GUI mode.\n";
+        while(g_running) std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    
     g_running = false;
+    monitor.stop();
+
+    if (monitorTh.joinable()) monitorTh.join();
     if (hotkeyTh.joinable()) hotkeyTh.join();
     if (overlayTh.joinable()) overlayTh.join();
 #endif
@@ -345,13 +388,13 @@ int main(int argc, char* argv[]) {
     orka::platform::SelectionMonitor monitor;
     orka::platform::TextInjector injector;
 
-    // §6: Register global hotkey Ctrl+Shift+O
+    // §6: Register global hotkey Alt+Z
     const int HOTKEY_ID = 1;
     if (!RegisterHotKey(nullptr, HOTKEY_ID,
-                        MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, 'O')) {
-        std::cerr << "[ORKA] Failed to register hotkey Ctrl+Shift+O\n";
+                        MOD_ALT | MOD_NOREPEAT, 'Z')) {
+        std::cerr << "[ORKA] Failed to register hotkey Alt+Z\n";
     } else {
-        std::cout << "[ORKA] Hotkey Ctrl+Shift+O registered\n";
+        std::cout << "[ORKA] Hotkey Alt+Z registered\n";
     }
 
 #ifdef ENTERPRISE_BUILD

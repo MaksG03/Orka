@@ -39,6 +39,14 @@ if [ -f "imege.png" ]; then
     cp imege.png "$DEB_DIR/usr/share/icons/hicolor/256x256/apps/orka.png"
 fi
 
+# 4.5. Copy UI files for Webview
+mkdir -p "$DEB_DIR/usr/share/orka/ui"
+if [ -d "src/ui/webapp/dist" ]; then
+    cp -r src/ui/webapp/dist/* "$DEB_DIR/usr/share/orka/ui/"
+else
+    echo "Warning: src/ui/webapp/dist not found. The GUI settings window will be empty."
+fi
+
 # 5. Create control file
 cat <<EOF > "$DEB_DIR/DEBIAN/control"
 Package: orka
