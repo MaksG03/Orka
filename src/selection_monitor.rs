@@ -12,7 +12,6 @@ pub mod windows {
     use ::windows::Win32::System::DataExchange::*;
     use ::windows::Win32::System::Memory::*;
     use ::windows::Win32::UI::Input::KeyboardAndMouse::*;
-    use ::windows::Win32::UI::WindowsAndMessaging::CF_UNICODETEXT;
 
     pub fn get_selected_text() -> Option<String> {
         unsafe {
@@ -66,17 +65,18 @@ pub mod windows {
 
     unsafe fn get_clipboard_text() -> Option<String> {
         if OpenClipboard(HWND(0)).is_err() { return None; }
-        let result = GetClipboardData(CF_UNICODETEXT.0 as u32).ok()
+        let result = GetClipboardData(13 /* CF_UNICODETEXT */).ok()
             .and_then(|h| {
-                let ptr = GlobalLock(h.0 as *mut _) as *const u16;
-                if ptr.is_null() { return None; }
-                let len = (0..).take_while(|&i| *ptr.add(i) != 0).count();
-                let text = String::from_utf16_lossy(
-                    std::slice::from_raw_parts(ptr, len)
-                ).to_string();
-                GlobalUnlock(h.0 as *mut _);
-                Some(text)
-            });
+                // In windows 0.52, GlobalLock takes the HGLOBAL param directly
+                let ptr = GlobalLock(h) as *const u16;
+            if ptr.is_null() { return None; }
+            let len = (0..).take_while(|&i| *ptr.add(i) != 0).count();
+            let text = String::from_utf16_lossy(
+                std::slice::from_raw_parts(ptr, len)
+            ).to_string();
+            let _ = GlobalUnlock(h);
+            Some(text)
+        });
         let _ = CloseClipboard();
         result
     }
@@ -87,12 +87,12 @@ pub mod windows {
         let wide: Vec<u16> = text.encode_utf16()
             .chain(std::iter::once(0)).collect();
         if let Ok(h) = GlobalAlloc(GMEM_MOVEABLE, wide.len() * 2) {
-            let ptr = GlobalLock(h.0 as *mut _) as *mut u16;
+            let ptr = GlobalLock(h) as *mut u16;
             if !ptr.is_null() {
                 std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
-                GlobalUnlock(h.0 as *mut _);
+                let _ = GlobalUnlock(h);
                 let _ = SetClipboardData(
-                    CF_UNICODETEXT.0 as u32,
+                    13 /* CF_UNICODETEXT */,
                     HANDLE(h.0 as isize)
                 );
             }

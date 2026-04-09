@@ -72,7 +72,7 @@ impl HangulEngine {
         let is_consonant = |c: char| compat_to_choseong.contains_key(&c);
         let is_vowel = |c: char| compat_to_jungseong.contains_key(&c);
 
-        let mut flush_syllable = |state: &mut State, out: &mut String,
+        let flush_syllable = |state: &mut State, out: &mut String,
                                    lead: &mut char, vowel: &mut char, trail: &mut char| {
             match state {
                 State::Lead => {
