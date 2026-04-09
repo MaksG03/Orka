@@ -112,7 +112,7 @@ endif()
 
 # Platform libraries
 if(WIN32)
-    target_link_libraries(orka PRIVATE user32 gdi32 ole32 oleaut32 uiautomationcore oleacc webview)
+    target_link_libraries(orka PRIVATE user32 gdi32 ole32 oleaut32 uiautomationcore oleacc webview_core_static)
 elseif(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
     find_package(PkgConfig REQUIRED)
@@ -121,7 +121,7 @@ elseif(UNIX AND NOT APPLE)
     target_include_directories(orka PRIVATE ${APPINDICATOR_INCLUDE_DIRS})
     target_link_directories(orka PRIVATE ${APPINDICATOR_LIBRARY_DIRS})
     
-    target_link_libraries(orka PRIVATE X11 Xfixes webview ${APPINDICATOR_LIBRARIES})
+    target_link_libraries(orka PRIVATE X11 Xfixes webview_core_static ${APPINDICATOR_LIBRARIES})
 endif()
 
 # ── Test runner ─────────────────────────────────────────────────────

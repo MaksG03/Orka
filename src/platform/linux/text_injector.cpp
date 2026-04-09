@@ -82,7 +82,9 @@ bool TextInjector::injectX11(const std::wstring& text) {
     // Method 2: Clipboard fallback — set PRIMARY then paste
     std::cerr << "[ORKA] xdotool type failed, falling back to clipboard\n";
     std::string setClip = "echo -n " + escaped + " | xclip -selection primary 2>/dev/null";
-    std::system(setClip.c_str());
+    if (std::system(setClip.c_str()) != 0) {
+        std::cerr << "[ORKA] Failed to set PRIMARY selection for fallback.\n";
+    }
 
     std::string paste = "xdotool key --clearmodifiers ctrl+v 2>/dev/null";
     ret = std::system(paste.c_str());
