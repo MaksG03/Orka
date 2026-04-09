@@ -11,8 +11,6 @@ jobs:
   build-linux:
     name: Build Linux DEB
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -36,13 +34,14 @@ jobs:
   build-windows:
     name: Build Windows MSIX
     runs-on: windows-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Build and Package MSIX
-        shell: powershell
+        shell: pwsh
         run: .\scripts\build_windows_ms_store.ps1
 
       - name: Upload Artifact
