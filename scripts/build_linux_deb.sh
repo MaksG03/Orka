@@ -55,6 +55,7 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: Perepelytsia Orka Technologies <orka@example.com>
+Depends: libgtk-3-0, libwebkit2gtk-4.0-37, libx11-6, libayatana-appindicator3-1 | libappindicator3-1
 Description: Intelligent keyboard layout converter
  Supports EN/UK, EN/KO, and EN/HE pairs with seamless overlay UI.
 EOF
