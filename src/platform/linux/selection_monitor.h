@@ -13,6 +13,10 @@
 #include <string>
 #include <functional>
 
+#ifdef __linux__
+#include <sys/types.h>
+#endif
+
 namespace orka {
 namespace platform {
 
@@ -46,6 +50,10 @@ private:
     bool        m_isWayland = false;
     bool        m_isGnome = false;
     SelectionCallback m_callback;
+
+#ifdef __linux__
+    pid_t       m_waylandPid = -1;
+#endif
 
     // X11 internals
     void runX11EventLoop();

@@ -51,10 +51,26 @@ namespace {
     std::chrono::steady_clock::time_point g_selectionTime;
     int                     g_cursorX = 0;
     int                     g_cursorY = 0;
+
+#ifdef __linux__
+    orka::platform::SelectionMonitor* g_linuxMonitor = nullptr;
+#endif
+
+#ifdef _WIN32
+    DWORD g_mainThreadId = 0;
+#endif
 }
 
 void signalHandler(int) {
     g_running = false;
+#ifdef __linux__
+    if (g_linuxMonitor) g_linuxMonitor->stop();
+#endif
+#ifdef _WIN32
+    if (g_mainThreadId != 0) {
+        PostThreadMessage(g_mainThreadId, WM_QUIT, 0, 0);
+    }
+#endif
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -274,6 +290,8 @@ int main(int argc, char* argv[]) {
 
 #ifdef __linux__
     orka::platform::SelectionMonitor monitor;
+    g_linuxMonitor = &monitor;
+    
     orka::platform::TextInjector injector;
 
     // §3.4: Warn if GNOME Wayland (overlay unavailable)
@@ -322,6 +340,8 @@ int main(int argc, char* argv[]) {
 #endif
 
 #ifdef _WIN32
+    g_mainThreadId = GetCurrentThreadId();
+    
     orka::platform::SelectionMonitor monitor;
     orka::platform::TextInjector injector;
 

@@ -20,10 +20,15 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <fcntl.h>
 
 #include "core/utf8_utils.h"
-#include <iostream>
-#include <unistd.h>
 
 namespace orka {
 namespace platform {
@@ -55,6 +60,12 @@ bool SelectionMonitor::isGnomeWayland() const { return m_isWayland && m_isGnome;
 
 void SelectionMonitor::stop() {
     m_running = false;
+    if (m_waylandPid > 0) {
+        ::kill(m_waylandPid, SIGTERM);
+        int status;
+        ::waitpid(m_waylandPid, &status, WNOHANG);
+        m_waylandPid = -1;
+    }
 }
 
 
@@ -152,7 +163,20 @@ void SelectionMonitor::runX11EventLoop() {
                 }
             }
         }
-        usleep(50000); // 50ms polling to prevent blocking shutdown
+        
+        if (!m_running) break;
+        
+        // Efficient wait for X11 events instead of spinning CPU
+        fd_set in_fds;
+        FD_ZERO(&in_fds);
+        int x11_fd = ConnectionNumber(display);
+        FD_SET(x11_fd, &in_fds);
+        
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 100000; // 100ms timeout
+        
+        select(x11_fd + 1, &in_fds, nullptr, nullptr, &tv);
     }
 
     XCloseDisplay(display);
@@ -214,14 +238,41 @@ std::wstring SelectionMonitor::getX11PrimarySelection() {
 // ════════════════════════════════════════════════════════════════════
 
 void SelectionMonitor::runWaylandEventLoop() {
-    // Wayland selection monitoring via wl-paste --watch
-    // This is the practical approach for wlroots-based compositors
     std::cout << "[ORKA] Wayland Selection Monitor started (wl-paste --watch)\n";
 
-    FILE* proc = popen("wl-paste --watch cat --primary 2>/dev/null", "r");
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        std::cerr << "[ORKA] Cannot create pipe for Wayland watcher\n";
+        return;
+    }
+
+    m_waylandPid = fork();
+    if (m_waylandPid == -1) {
+        std::cerr << "[ORKA] Cannot fork Wayland watcher\n";
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return;
+    }
+
+    if (m_waylandPid == 0) {
+        // Child
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull != -1) {
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        close(pipefd[1]);
+        execlp("wl-paste", "wl-paste", "--watch", "cat", "--primary", nullptr);
+        _exit(1);
+    }
+
+    // Parent
+    close(pipefd[1]);
+    FILE* proc = fdopen(pipefd[0], "r");
     if (!proc) {
-        std::cerr << "[ORKA] Cannot start wl-paste watcher. "
-                     "Install wl-clipboard for Wayland support.\n";
+        close(pipefd[0]);
         return;
     }
 
@@ -240,7 +291,16 @@ void SelectionMonitor::runWaylandEventLoop() {
         }
     }
 
-    pclose(proc);
+    fclose(proc);
+    
+    // Ensure child exits and is reaped
+    if (m_waylandPid > 0) {
+        ::kill(m_waylandPid, SIGTERM);
+        int status;
+        ::waitpid(m_waylandPid, &status, WNOHANG);
+        m_waylandPid = -1;
+    }
+
     std::cout << "[ORKA] Wayland Selection Monitor stopped\n";
 }
 
