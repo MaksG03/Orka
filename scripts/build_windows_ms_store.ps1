@@ -68,16 +68,13 @@ Copy-Item $ExePath (Join-Path $StagingDir "orka.exe")
 $ManifestSrc = Join-Path $ProjectPath "packaging" "windows" "AppxManifest.xml"
 Copy-Item $ManifestSrc (Join-Path $StagingDir "AppxManifest.xml")
 
-# Copy logo assets (or warn if missing)
-$LogoSrc = Join-Path $ProjectPath "imege.png"
-if (Test-Path $LogoSrc) {
-    Copy-Item $LogoSrc (Join-Path $AssetsDir "StoreLogo.png")
-    Copy-Item $LogoSrc (Join-Path $AssetsDir "Square150x150Logo.png")
-    Copy-Item $LogoSrc (Join-Path $AssetsDir "Square44x44Logo.png")
-    Copy-Item $LogoSrc (Join-Path $AssetsDir "Wide310x150Logo.png")
-    Write-Host "Logo assets copied."
+# Copy prepared logo assets from the packaging directory
+$AssetsSrcDir = Join-Path $ProjectPath "packaging" "windows" "Assets"
+if (Test-Path $AssetsSrcDir) {
+    Copy-Item (Join-Path $AssetsSrcDir "*") $AssetsDir -Recurse -Force
+    Write-Host "Prepared logo assets copied."
 } else {
-    Write-Warning "imege.png not found at $LogoSrc — Microsoft Store packaging requires images inside Assets folder"
+    Write-Warning "Assets directory not found at $AssetsSrcDir — Microsoft Store packaging requires properly sized images."
 }
 
 # 3. Create MSIX Package using MakeAppx.exe (from Windows SDK)
