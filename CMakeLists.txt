@@ -95,7 +95,7 @@ endif()
 
 # Platform libraries
 if(WIN32)
-    target_link_libraries(orka PRIVATE user32 gdi32 ole32 oleaut32 uiautomationcore)
+    target_link_libraries(orka PRIVATE user32 gdi32 ole32 oleaut32 uiautomationcore oleacc)
 elseif(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
     target_include_directories(orka PRIVATE ${X11_INCLUDE_DIR})
