@@ -4,10 +4,6 @@
 #include <memory>
 #include <functional>
 
-namespace webview {
-    class webview;
-}
-
 namespace orka {
 namespace ui {
 
@@ -25,7 +21,8 @@ public:
     }
 
 private:
-    std::unique_ptr<webview::webview> m_webview;
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
     std::function<void(const std::string&)> m_onLangChanged;
 };
 
