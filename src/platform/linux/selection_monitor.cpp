@@ -23,6 +23,7 @@
 
 #include "core/utf8_utils.h"
 #include <iostream>
+#include <unistd.h>
 
 namespace orka {
 namespace platform {

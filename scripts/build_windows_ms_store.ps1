@@ -39,7 +39,7 @@ if (Test-Path "..\imege.png") {
     Copy-Item "..\imege.png" "$AssetsDir\Square44x44Logo.png"
     Copy-Item "..\imege.png" "$AssetsDir\Wide310x150Logo.png"
 } else {
-    Write-Warning "Images not found. Microsoft Store packaging requires images inside Assets\"
+    Write-Warning "Images not found. Microsoft Store packaging requires images inside Assets folder"
 }
 
 # 3. Create MSIX Package using MakeAppx.exe (from Windows SDK)
